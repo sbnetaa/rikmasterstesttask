@@ -1,11 +1,36 @@
 package ru.terentyev.rikmasterstesttask.services;
 
-import org.springframework.stereotype.Service;
+import java.io.IOException;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fasterxml.jackson.core.exc.StreamReadException;
+import com.fasterxml.jackson.databind.DatabindException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import ru.terentyev.rikmasterstesttask.entities.CoffeeInflow;
 import ru.terentyev.rikmasterstesttask.entities.CoffeeResponse;
+import ru.terentyev.rikmasterstesttask.repositories.CoffeeRepository;
+
+import ru.terentyev.rikmasterstesttask.entities.Coffee;
 
 @Service
+@Transactional(readOnly = true)
 public class CoffeeServiceImpl implements CoffeeService {
+
+	private CoffeeRepository coffeeRepository;
+	private ObjectMapper objectMapper;
+	
+	@Autowired
+	public CoffeeServiceImpl(CoffeeRepository coffeeRepository, ObjectMapper objectMapper) {
+		super();
+		this.coffeeRepository = coffeeRepository;
+		this.objectMapper = objectMapper;
+	}
 
 	@Override
 	public CoffeeResponse takeStock(String sort, String country) {
@@ -24,5 +49,10 @@ public class CoffeeServiceImpl implements CoffeeService {
 		// TODO Auto-generated method stub
 		return null;
 	}
-
+	
+	@KafkaListener(topics = "coffee-inflow")
+	public void acceptCoffeeInflow(byte[] coffeeInflowAsBytes, Acknowledgment acknowledgment) throws StreamReadException, DatabindException, IOException {
+		CoffeeInflow coffeeInflow = objectMapper.readValue(coffeeInflowAsBytes, CoffeeInflow.class);
+		Coffee newCoffee = coffeeInflow;
+	}
 }
