@@ -53,6 +53,13 @@ public class CoffeeServiceImpl implements CoffeeService {
 	@KafkaListener(topics = "coffee-inflow")
 	public void acceptCoffeeInflow(byte[] coffeeInflowAsBytes, Acknowledgment acknowledgment) throws StreamReadException, DatabindException, IOException {
 		CoffeeInflow coffeeInflow = objectMapper.readValue(coffeeInflowAsBytes, CoffeeInflow.class);
-		Coffee newCoffee = coffeeInflow;
+		Coffee coffee = new Coffee();
+		coffee.setGrams(coffeeInflow.getBagsCount() * CoffeeInflow.BAG_WEIGHT_GRAMS);
+		coffee.setArabicaPercentage(coffeeInflow.getArabicaPercentage());
+		coffee.setRobustaPercentage(coffeeInflow.getRobustaPercentage());
+		coffee.setCountry(coffeeInflow.getCountry());
+		coffee.setSort(coffeeInflow.getSort());
+		coffeeRepository.save(coffee);
+		acknowledgment.acknowledge();
 	}
 }

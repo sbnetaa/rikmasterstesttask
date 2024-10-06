@@ -10,7 +10,7 @@ import lombok.Setter;
 @Entity
 @Table(name = "coffee")
 public class Coffee extends AbstractEntity {
-
+	
 	private long grams;
 	private String sort;
 	private String country;
