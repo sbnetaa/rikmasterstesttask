@@ -62,4 +62,8 @@ public class CoffeeServiceImpl implements CoffeeService {
 		coffeeRepository.save(coffee);
 		acknowledgment.acknowledge();
 	}
+	
+//	static class RoastingProcessor extends RoastingProcessorGrpc.RoastingProcessorImplBase {
+//		
+//	}
 }
