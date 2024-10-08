@@ -16,6 +16,7 @@ public class CoffeeResponse extends AbstractEntity {
 	private String sort;
 	private String country;
 	private int gramsStock;
+	private int roastedGramsStock;
 	private Map<UUID, Double> lossesPerBrigade;
 	private Map<String, Double> lossesPerCountry;
 }

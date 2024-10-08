@@ -8,4 +8,6 @@ import ru.terentyev.rikmasterstesttask.entities.Roasting;
 @Repository
 public interface RoastingRepository extends JpaRepository<Roasting, Integer> {
 
+	@Query("SELECT (SUM(r.lossesPercentage) / COUNT(r)) FROM Roasting r HAVING r.brigadeNumber = ?1;")
+	
 }

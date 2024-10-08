@@ -47,8 +47,12 @@ public class CoffeeServiceImpl extends RoastingServiceGrpc.RoastingServiceImplBa
 
 	@Override
 	public CoffeeResponse takeStock(String sort, String country) {
-		// TODO Auto-generated method stub
-		return null;
+		CoffeeResponse response = new CoffeeResponse();
+		response.setCountry(country);
+		response.setSort(sort);
+		response.setGramsStock(coffeeRepository.takeStock(sort, country));
+		response.setRoastedGramsStock(coffeeRepository.takeRoastedStock(sort, country));
+		return response;
 	}
 
 	@Override
@@ -64,6 +68,7 @@ public class CoffeeServiceImpl extends RoastingServiceGrpc.RoastingServiceImplBa
 	}
 	
 	@KafkaListener(topics = "coffee-inflow")
+	@Transactional(readOnly = false)
 	public void acceptCoffeeInflow(byte[] coffeeInflowAsBytes, Acknowledgment acknowledgment) throws StreamReadException, DatabindException, IOException {
 		CoffeeInflow coffeeInflow = objectMapper.readValue(coffeeInflowAsBytes, CoffeeInflow.class);
 		Coffee coffee = new Coffee();
@@ -77,6 +82,7 @@ public class CoffeeServiceImpl extends RoastingServiceGrpc.RoastingServiceImplBa
 	}
 	
     @Override
+    @Transactional(readOnly = false)
     public void acceptRoasting(RoastingRequest request, StreamObserver<Empty> responseObserver) {
     	String sort = request.getSort();
     	String country = request.getCountry();

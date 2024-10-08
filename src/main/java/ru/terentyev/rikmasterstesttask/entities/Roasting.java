@@ -18,4 +18,5 @@ public class Roasting extends AbstractEntity {
 	private String country;
 	private int gramsResulting;
 	private UUID brigadeNumber;
+	private double lossesPercentage;
 }
