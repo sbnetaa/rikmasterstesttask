@@ -83,21 +83,6 @@
             <artifactId>protobuf-java</artifactId>
             <version>4.28.2</version>
         </dependency>
-        <dependency>
-    		<groupId>io.grpc</groupId>
-    		<artifactId>grpc-netty</artifactId>
-    		<version>${grpc.version}</version>
-		</dependency>
-        <dependency>
-    		<groupId>io.grpc</groupId>
-    		<artifactId>grpc-protobuf</artifactId>
-    		<version>${grpc.version}</version>
-		</dependency>
-		<dependency>
-    		<groupId>io.grpc</groupId>
-    		<artifactId>grpc-stub</artifactId>
-    		<version>${grpc.version}</version>
-		</dependency>
 		<dependency> <!-- necessary for Java 9+ -->
   			<groupId>org.apache.tomcat</groupId>
   			<artifactId>annotations-api</artifactId>
