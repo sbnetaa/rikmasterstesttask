@@ -13,5 +13,6 @@ message RoastingRequest {
     string sort = 1;
     string country = 2;
     string brigadeNumber = 3;
-    int32 gramsTaken = 4;
+    int32 gramsBeforeRoasting = 4;
+    int32 gramsAfterRoasting = 5;
 }

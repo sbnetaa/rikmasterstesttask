@@ -1,6 +1,7 @@
 package ru.terentyev.rikmasterstesttask.services;
 
 import java.io.IOException;
+import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -11,17 +12,22 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.core.exc.StreamReadException;
 import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.protobuf.Empty;
 
+import io.grpc.Status;
+import io.grpc.stub.StreamObserver;
+import net.devh.boot.grpc.server.service.GrpcService;
 import ru.terentyev.rikmasterstesttask.entities.Coffee;
 import ru.terentyev.rikmasterstesttask.entities.CoffeeInflow;
 import ru.terentyev.rikmasterstesttask.entities.CoffeeResponse;
 import ru.terentyev.rikmasterstesttask.repositories.CoffeeRepository;
+import ru.terentyev.rikmasterstesttask.roasting.RoastingRequest;
+import ru.terentyev.rikmasterstesttask.roasting.RoastingServiceGrpc;
 
 @Service
 @Transactional(readOnly = true)
-//@GrpcService
-public class CoffeeServiceImpl// extends RoastingProcessorGrpc.RoastingProcessorImplBase
-implements CoffeeService {
+@GrpcService
+public class CoffeeServiceImpl extends RoastingServiceGrpc.RoastingServiceImplBase implements CoffeeService {
 
 	private CoffeeRepository coffeeRepository;
 	private ObjectMapper objectMapper;
@@ -64,19 +70,19 @@ implements CoffeeService {
 		acknowledgment.acknowledge();
 	}
 	
-//    @Override
-//    public void sendRoasting(RoastingRequest request, StreamObserver<Empty> responseObserver) {
-//    	String sort = request.getSort();
-//    	String country = request.getCountry();
-//    	List<Coffee> coffeeList = coffeeRepository.findAllBySortAndCountry(sort, country);
-//    	int sumOfFreshGramsPresent = 0;
-//    	coffeeList.forEach(c -> sumOfFreshGramsPresent += c.getGrams() - c.getRoastedGramsAtInput());
-//    	if (coffeeList.isEmpty() || sumOfFreshGramsPresent < request.get) {
-//			responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Кофе с сортом " + sort + " и страной " + country + " отсутствует на складе").asException());
-//		    return;
-//    	}
-//        responseObserver.onNext(Empty.newBuilder().build());
-//        responseObserver.onCompleted();
-//    }
+    @Override
+    public void acceptRoasting(RoastingRequest request, StreamObserver<Empty> responseObserver) {
+    	String sort = request.getSort();
+    	String country = request.getCountry();
+    	List<Coffee> coffeeList = coffeeRepository.findAllBySortAndCountry(sort, country);
+    	int sumOfFreshGramsPresent = 0;
+    	coffeeList.forEach(c -> sumOfFreshGramsPresent += c.getGrams() - c.getRoastedGramsAtInput());
+    	if (coffeeList.isEmpty() || sumOfFreshGramsPresent < request.get) {
+			responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Кофе с сортом " + sort + " и страной " + country + " отсутствует на складе").asException());
+		    return;
+    	}
+        responseObserver.onNext(Empty.newBuilder().build());
+        responseObserver.onCompleted();
+    }
 
 }
