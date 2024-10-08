@@ -11,9 +11,10 @@ import lombok.Setter;
 @Table(name = "coffee")
 public class Coffee extends AbstractEntity {
 	
-	private long grams;
+	private int grams;
 	private String sort;
 	private String country;
 	private double robustaPercentage;
 	private double arabicaPercentage;
+	private int roastedGramsAtInput;
 }

@@ -12,15 +12,16 @@ import com.fasterxml.jackson.core.exc.StreamReadException;
 import com.fasterxml.jackson.databind.DatabindException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import ru.terentyev.rikmasterstesttask.entities.Coffee;
 import ru.terentyev.rikmasterstesttask.entities.CoffeeInflow;
 import ru.terentyev.rikmasterstesttask.entities.CoffeeResponse;
 import ru.terentyev.rikmasterstesttask.repositories.CoffeeRepository;
 
-import ru.terentyev.rikmasterstesttask.entities.Coffee;
-
 @Service
 @Transactional(readOnly = true)
-public class CoffeeServiceImpl implements CoffeeService {
+//@GrpcService
+public class CoffeeServiceImpl// extends RoastingProcessorGrpc.RoastingProcessorImplBase
+implements CoffeeService {
 
 	private CoffeeRepository coffeeRepository;
 	private ObjectMapper objectMapper;
@@ -63,7 +64,19 @@ public class CoffeeServiceImpl implements CoffeeService {
 		acknowledgment.acknowledge();
 	}
 	
-//	static class RoastingProcessor extends RoastingProcessorGrpc.RoastingProcessorImplBase {
-//		
-//	}
+//    @Override
+//    public void sendRoasting(RoastingRequest request, StreamObserver<Empty> responseObserver) {
+//    	String sort = request.getSort();
+//    	String country = request.getCountry();
+//    	List<Coffee> coffeeList = coffeeRepository.findAllBySortAndCountry(sort, country);
+//    	int sumOfFreshGramsPresent = 0;
+//    	coffeeList.forEach(c -> sumOfFreshGramsPresent += c.getGrams() - c.getRoastedGramsAtInput());
+//    	if (coffeeList.isEmpty() || sumOfFreshGramsPresent < request.get) {
+//			responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Кофе с сортом " + sort + " и страной " + country + " отсутствует на складе").asException());
+//		    return;
+//    	}
+//        responseObserver.onNext(Empty.newBuilder().build());
+//        responseObserver.onCompleted();
+//    }
+
 }

@@ -1,16 +1,17 @@
 syntax = "proto3";
 
-option java_package = "ru.terentyev.rikmasterstesttask.roastingcoffee";
+option java_package = "ru.terentyev.rikmasterstesttask.roasting";
 option java_multiple_files = true;
 
 import "google/protobuf/empty.proto";
 
-service RoastingProcessor {
-    rpc sendRoasting(RoastingRequest) returns (google.protobuf.Empty) {}
+service RoastingService {
+    rpc acceptRoasting(RoastingRequest) returns (google.protobuf.Empty) {}
 }
 
 message RoastingRequest {
     string sort = 1;
     string country = 2;
     string brigadeNumber = 3;
+    int32 gramsTaken = 4;
 }
