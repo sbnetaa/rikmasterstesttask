@@ -3,7 +3,6 @@ package ru.terentyev.rikmasterstesttask.services;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.core.exc.StreamReadException;
 import com.fasterxml.jackson.databind.DatabindException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.Empty;
 
 import io.grpc.Status;
@@ -36,15 +34,12 @@ public class CoffeeServiceImpl extends RoastingServiceGrpc.RoastingServiceImplBa
 
 	private CoffeeRepository coffeeRepository;
 	private RoastingRepository roastingRepository;
-	private ObjectMapper objectMapper;
 	
 	@Autowired
-	public CoffeeServiceImpl(CoffeeRepository coffeeRepository, RoastingRepository roastingRepository
-			, ObjectMapper objectMapper) {
+	public CoffeeServiceImpl(CoffeeRepository coffeeRepository, RoastingRepository roastingRepository) {
 		super();
 		this.coffeeRepository = coffeeRepository;
 		this.roastingRepository = roastingRepository;
-		this.objectMapper = objectMapper;
 	}
 
 	@Override
@@ -69,7 +64,7 @@ public class CoffeeServiceImpl extends RoastingServiceGrpc.RoastingServiceImplBa
 		CoffeeResponse response = new CoffeeResponse();
 		UUID[] brigades = roastingRepository.findAllBrigades();
 		for (UUID brigade : brigades) response.getLossesPerBrigade().put(brigade, roastingRepository.takeLossesPerBrigade(brigade));
-		return null;
+		return response;
 	}
 
 	@Override
@@ -78,10 +73,12 @@ public class CoffeeServiceImpl extends RoastingServiceGrpc.RoastingServiceImplBa
 		return null;
 	}
 	
+	
+	// TODO object или byte[] ?
 	@KafkaListener(topics = "coffee-inflow")
 	@Transactional(readOnly = false)
-	public void acceptCoffeeInflow(byte[] coffeeInflowAsBytes, Acknowledgment acknowledgment) throws StreamReadException, DatabindException, IOException {
-		CoffeeInflow coffeeInflow = objectMapper.readValue(coffeeInflowAsBytes, CoffeeInflow.class);
+	public void acceptCoffeeInflow(CoffeeInflow coffeeInflow, Acknowledgment acknowledgment) throws StreamReadException, DatabindException, IOException {
+		//CoffeeInflow coffeeInflow = objectMapper.readValue(coffeeInflowAsBytes, CoffeeInflow.class);
 		Coffee coffee = new Coffee();
 		coffee.setGrams(coffeeInflow.getBagsCount() * CoffeeInflow.BAG_WEIGHT_GRAMS);
 		coffee.setArabicaPercentage(coffeeInflow.getArabicaPercentage());

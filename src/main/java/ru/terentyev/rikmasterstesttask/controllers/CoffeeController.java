@@ -1,5 +1,7 @@
 package ru.terentyev.rikmasterstesttask.controllers;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -24,18 +26,18 @@ public class CoffeeController extends AbstractController {
 	}
 	
 	@GetMapping("/stock")
-	public ResponseEntity<CoffeeResponse> takeStock(@RequestParam String sort, @RequestParam String country) {
-		return new ResponseEntity<>(coffeeService.takeStock(sort, country), HttpStatus.OK);
+	public ResponseEntity<List<CoffeeResponse>> takeStock(@RequestParam String sort, @RequestParam String country) {
+		return new ResponseEntity<>(coffeeService.takeStock(), HttpStatus.OK);
 	}
 	
 	@GetMapping("/losses/brigade")
 	public ResponseEntity<CoffeeResponse> takeLossesPerBrigade(@RequestParam String brigadeUuid) {
-		return new ResponseEntity<>(coffeeService.takeLossesPerBrigade(brigadeUuid), HttpStatus.OK);
+		return new ResponseEntity<>(coffeeService.takeLossesPerBrigade(), HttpStatus.OK);
 	}
 	
 	@GetMapping("/losses/country")
 	public ResponseEntity<CoffeeResponse> takeLossesPerCountry(@RequestParam String country) {
-		return new ResponseEntity<>(coffeeService.takeLossesPerBrigade(country), HttpStatus.OK);
+		return new ResponseEntity<>(coffeeService.takeLossesPerBrigade(), HttpStatus.OK);
 	}
 	
 }
