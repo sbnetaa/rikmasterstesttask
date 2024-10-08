@@ -2,6 +2,7 @@ package ru.terentyev.rikmasterstesttask.services;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -20,7 +21,9 @@ import net.devh.boot.grpc.server.service.GrpcService;
 import ru.terentyev.rikmasterstesttask.entities.Coffee;
 import ru.terentyev.rikmasterstesttask.entities.CoffeeInflow;
 import ru.terentyev.rikmasterstesttask.entities.CoffeeResponse;
+import ru.terentyev.rikmasterstesttask.entities.Roasting;
 import ru.terentyev.rikmasterstesttask.repositories.CoffeeRepository;
+import ru.terentyev.rikmasterstesttask.repositories.RoastingRepository;
 import ru.terentyev.rikmasterstesttask.roasting.RoastingRequest;
 import ru.terentyev.rikmasterstesttask.roasting.RoastingServiceGrpc;
 
@@ -30,12 +33,15 @@ import ru.terentyev.rikmasterstesttask.roasting.RoastingServiceGrpc;
 public class CoffeeServiceImpl extends RoastingServiceGrpc.RoastingServiceImplBase implements CoffeeService {
 
 	private CoffeeRepository coffeeRepository;
+	private RoastingRepository roastingRepository;
 	private ObjectMapper objectMapper;
 	
 	@Autowired
-	public CoffeeServiceImpl(CoffeeRepository coffeeRepository, ObjectMapper objectMapper) {
+	public CoffeeServiceImpl(CoffeeRepository coffeeRepository, RoastingRepository roastingRepository
+			, ObjectMapper objectMapper) {
 		super();
 		this.coffeeRepository = coffeeRepository;
+		this.roastingRepository = roastingRepository;
 		this.objectMapper = objectMapper;
 	}
 
@@ -76,11 +82,30 @@ public class CoffeeServiceImpl extends RoastingServiceGrpc.RoastingServiceImplBa
     	String country = request.getCountry();
     	List<Coffee> coffeeList = coffeeRepository.findAllBySortAndCountry(sort, country);
     	int sumOfFreshGramsPresent = 0;
-    	coffeeList.forEach(c -> sumOfFreshGramsPresent += c.getGrams() - c.getRoastedGramsAtInput());
-    	if (coffeeList.isEmpty() || sumOfFreshGramsPresent < request.get) {
-			responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("Кофе с сортом " + sort + " и страной " + country + " отсутствует на складе").asException());
+    	for (Coffee coffee : coffeeList) sumOfFreshGramsPresent += coffee.getGrams() - coffee.getRoastedGramsAtInput();
+    	if (coffeeList.isEmpty() || sumOfFreshGramsPresent < request.getGramsBeforeRoasting()) {
+			responseObserver.onError(Status.RESOURCE_EXHAUSTED.withDescription("Кофе с сортом " + sort + " и страной " + country + " недостаточно на складе").asException());
 		    return;
     	}
+    	int gramsToRoastLeft = request.getGramsBeforeRoasting();
+    	for (Coffee coffee : coffeeList) {
+    		if ((coffee.getGrams() - coffee.getRoastedGramsAtInput()) >= gramsToRoastLeft) {
+    			coffee.setRoastedGramsAtInput(coffee.getRoastedGramsAtInput() + request.getGramsBeforeRoasting());
+    			break;
+    		}
+    		int gramsToRoastSingleTmp = coffee.getGrams() - coffee.getRoastedGramsAtInput();
+    		coffee.setRoastedGramsAtInput(coffee.getGrams());
+    		gramsToRoastLeft -= gramsToRoastSingleTmp;
+    	}
+    	Roasting roasting = new Roasting();
+    	roasting.setGramsTaken(request.getGramsBeforeRoasting());
+    	roasting.setSort(request.getSort());
+    	roasting.setCountry(request.getCountry());
+    	roasting.setGramsResulting(request.getGramsAfterRoasting());
+    	roasting.setBrigadeNumber(UUID.fromString(request.getBrigadeNumber()));
+    	roastingRepository.save(roasting);
+    	coffeeRepository.saveAll(coffeeList);
+    	
         responseObserver.onNext(Empty.newBuilder().build());
         responseObserver.onCompleted();
     }
