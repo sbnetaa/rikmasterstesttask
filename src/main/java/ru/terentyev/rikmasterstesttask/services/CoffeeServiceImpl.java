@@ -1,7 +1,9 @@
 package ru.terentyev.rikmasterstesttask.services;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,23 +48,32 @@ public class CoffeeServiceImpl extends RoastingServiceGrpc.RoastingServiceImplBa
 	}
 
 	@Override
-	public CoffeeResponse takeStock(String sort, String country) {
-		CoffeeResponse response = new CoffeeResponse();
-		response.setCountry(country);
-		response.setSort(sort);
-		response.setGramsStock(coffeeRepository.takeStock(sort, country));
-		response.setRoastedGramsStock(coffeeRepository.takeRoastedStock(sort, country));
-		return response;
+	public List<CoffeeResponse> takeStock() {
+		List<CoffeeResponse> responsesList = new ArrayList<>();
+		List<Coffee> uniqueCoffeeList = coffeeRepository.findAllGroupBySortAndCountry();
+		for (Coffee coffee : uniqueCoffeeList) {
+			CoffeeResponse response = new CoffeeResponse();
+			String sort = coffee.getSort();
+			String country = coffee.getCountry();
+			response.setGramsStock(coffeeRepository.takeCommonStockPerSortAndCountry(sort, country));
+			response.setFreshGramsStock(coffeeRepository.takeFreshStockPerSortAndCountry(sort, country));
+			response.setCountry(country);
+			response.setSort(sort);
+			responsesList.add(response);
+		}
+		return responsesList;
 	}
 
 	@Override
-	public CoffeeResponse takeLossesPerBrigade(String brigadeUuid) {
-		// TODO Auto-generated method stub
+	public CoffeeResponse takeLossesPerBrigade() {
+		CoffeeResponse response = new CoffeeResponse();
+		UUID[] brigades = roastingRepository.findAllBrigades();
+		for (UUID brigade : brigades) response.getLossesPerBrigade().put(brigade, roastingRepository.takeLossesPerBrigade(brigade));
 		return null;
 	}
 
 	@Override
-	public CoffeeResponse takeLossesPerCountry(String country) {
+	public CoffeeResponse takeLossesPerCountry() {
 		// TODO Auto-generated method stub
 		return null;
 	}
