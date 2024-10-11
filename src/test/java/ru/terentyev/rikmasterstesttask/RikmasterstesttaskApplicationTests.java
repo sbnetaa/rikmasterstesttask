@@ -1,23 +1,20 @@
 package ru.terentyev.rikmasterstesttask;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 
-import org.hamcrest.Matchers;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.mockito.ArgumentCaptor;
@@ -27,22 +24,16 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.ResultMatcher;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
-
-import com.fasterxml.jackson.core.type.TypeReference;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -50,10 +41,11 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import ru.terentyev.rikmasterstesttask.entities.Coffee;
 import ru.terentyev.rikmasterstesttask.entities.CoffeeInflow;
+import ru.terentyev.rikmasterstesttask.entities.Roasting;
 import ru.terentyev.rikmasterstesttask.repositories.CoffeeRepository;
+import ru.terentyev.rikmasterstesttask.repositories.RoastingRepository;
 import ru.terentyev.rikmasterstesttask.roasting.RoastingRequest;
 import ru.terentyev.rikmasterstesttask.roasting.RoastingServiceGrpc;
-import ru.terentyev.rikmasterstesttask.services.CoffeeService;
 import ru.terentyev.rikmasterstesttask.services.CoffeeServiceImpl;
 
 @SpringBootTest
@@ -75,37 +67,39 @@ class RikmasterstesttaskApplicationTests {
 	    private PlatformTransactionManager transactionManager;
 	    @InjectMocks
 	    @Autowired
-	    private CoffeeService coffeeService;
+	    private CoffeeServiceImpl coffeeService;
 	    @Autowired
 	    private KafkaTemplate<String, CoffeeInflow> kafkaTemplate;
 	    @Autowired
 	    private MockMvc mockMvc;
 	    @MockBean
 	    private CoffeeRepository coffeeRepository;
+	    @MockBean
+	    private RoastingRepository roastingRepository;
+	    private Server server;
 	    private TransactionStatus transactionStatus;
 	    private ManagedChannel channel;
 	    private RoastingServiceGrpc.RoastingServiceBlockingStub blockingStub;
 	    private List<CoffeeInflow> coffeeInflowList;
 	    private List<RoastingRequest> roastingRequestsList;
-	    private List<Coffee> coffeeList;
+	    private List<Coffee> savedCoffee;
+	    private List<Roasting> savedRoasting;
 	    private Random random;
-	    private List<String> countriesList = List.of("Australia" + random.nextInt(), "Spain" + random.nextInt(), "Italy" + random.nextInt());
-	    private List<String> sortsList = List.of("Espresso" + random.nextInt(), "Cappuccino" + random.nextInt(), "Mochaccino" + random.nextInt());
+	    private List<String> countriesList = List.of("Australia" + random.nextInt(100), "Spain" + random.nextInt(100), "Italy" + random.nextInt(100));
+	    private List<String> sortsList = List.of("Espresso" + random.nextInt(100), "Cappuccino" + random.nextInt(100), "Mochaccino" + random.nextInt(100));
 	    
 	    private int coffeeBagsInflow;
 	    
 	    @BeforeAll
-	    public void setUp() {
+	    public void setUp() throws IOException {
 	    	transactionStatus = transactionManager.getTransaction(new DefaultTransactionDefinition());
 	        channel = ManagedChannelBuilder.forAddress("localhost", 50051)
 	                .usePlaintext()
 	                .build();
 	        blockingStub = RoastingServiceGrpc.newBlockingStub(channel);
 	        
-	        server = ServerBuilder.forPort(50051)
-	                .addService(coffeeService)
-	                .build()
-	                .start();
+	        server = ServerBuilder.forPort(50051).addService(coffeeService).build().start();
+	        
 	        fillCoffeeInflowList();
 	        fillRoastingRequestsList();
 	    }
@@ -197,7 +191,7 @@ class RikmasterstesttaskApplicationTests {
 	    	coffeeInflowList.forEach(coffeeInflow -> kafkaTemplate.send("coffee-inflow-topic", coffeeInflow));	        
 	        ArgumentCaptor<Coffee> captor = ArgumentCaptor.forClass(Coffee.class);
 	        verify(coffeeRepository, times(3)).save(captor.capture());	        
-	        List<Coffee> savedCoffee = captor.getAllValues();	        
+	        savedCoffee = captor.getAllValues();	        
 	        assertTrue(savedCoffee.stream().anyMatch(coffee -> coffee.getCountry().equals(coffeeInflowList.get(0).getCountry())));
 	        assertTrue(savedCoffee.stream().anyMatch(coffee -> coffee.getSort().equals(coffeeInflowList.get(1).getSort())));
 	        assertTrue(savedCoffee.stream().anyMatch(coffee -> coffee.getGrams() == (coffeeInflowList.get(2).getBagsCount() * CoffeeInflow.BAG_WEIGHT_GRAMS)));
@@ -206,14 +200,40 @@ class RikmasterstesttaskApplicationTests {
 	    }
 	    
 	    @Test
-	    public void testGetCoffee() {
-	        RoastingRequest request = RoastingRequest.newBuilder()
-	                .setCountry("Australia").setSort("Espresso")	                
-	                .build();
+	    public void testRoastingRequests() {
+	    	Map<String[], Integer> freshGramsStockPerCountryAndSort = new HashMap<>();
+	    	savedCoffee.forEach(coffee -> freshGramsStockPerCountryAndSort.compute
+	    			(
+	    					new String[]{coffee.getCountry(), coffee.getSort()}, (k, v) -> v += coffee.getGrams() - coffee.getRoastedGramsAtInput()
+	    					
+	    					));
+	    		    	
+	    	int i = 0;
+	    	roastingRequestsList.forEach(r -> {
+	    		if (freshGramsStockPerCountryAndSort.get(new String[] {r.getCountry(), r.getSort()}) < r.getGramsBeforeRoasting())
+	    			assertThrows(StatusException.class, () -> blockingStub.acceptRoasting(r));
+	    		else {
+	    			blockingStub.acceptRoasting(r);
+	    			i++;
+	    		}
+	    	});
+	        ArgumentCaptor<Roasting> captor = ArgumentCaptor.forClass(Roasting.class);
+	        verify(roastingRepository, times(i)).save(captor.capture());	        
+	        savedRoasting = captor.getAllValues();
+	        	        
+	        assertTrue(savedRoasting.stream().anyMatch(roasting -> roasting.getCountry().equals(roastingRequestsList.get(0).getCountry())));
+	        assertTrue(savedRoasting.stream().anyMatch(roasting -> roasting.getSort().equals(roastingRequestsList.get(1).getSort())));
+	        assertTrue(savedRoasting.stream().anyMatch(roasting -> roasting.getGramsTaken() == (roastingRequestsList.get(2).getGramsBeforeRoasting())));
+	        
+	        
+	        Map<String[], Map<RoastingRequest, Integer> gramsToRoastPerCountryAndSort = new HashMap<>();
+	        roastingRequestsList.forEach(roasting -> gramsToRoastPerCountryAndSort.compute(new String[]{roasting.getCountry(), roasting.getSort()}, (k, v) -> v += roasting.getGramsBeforeRoasting()));
+	        
+	        for (Map.Entry<String[], Integer> roastingEntry : gramsToRoastPerCountryAndSort.entrySet()) {
+	        	if (freshGramsStockPerCountryAndSort.get(roastingEntry.getKey()) < roastingEntry.getValue())
+	        		assertThrows(StatusException.class, () -> blockingStub.acceptRoasting())
+	        }
+	        
 
-	        Coffee response = blockingStub.getCoffee(request);
-
-	        assertEquals("Espresso", response.getName());
-	        assertEquals(100, response.getGrams());
 	    }
 }
