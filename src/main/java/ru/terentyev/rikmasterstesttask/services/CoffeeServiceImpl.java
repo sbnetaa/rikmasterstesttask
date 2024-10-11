@@ -69,13 +69,15 @@ public class CoffeeServiceImpl extends RoastingServiceGrpc.RoastingServiceImplBa
 
 	@Override
 	public CoffeeResponse takeLossesPerCountry() {
-		// TODO Auto-generated method stub
-		return null;
+		CoffeeResponse response = new CoffeeResponse();
+		String[] countries = roastingRepository.findAllCountries();
+		for (String country : countries) response.getLossesPerCountry().put(country, roastingRepository.takeLossesPerCountry(country));
+		return response;
 	}
 	
 	
 	// TODO object или byte[] ?
-	@KafkaListener(topics = "coffee-inflow")
+	@KafkaListener(topics = "coffee-inflow-topic")
 	@Transactional(readOnly = false)
 	public void acceptCoffeeInflow(CoffeeInflow coffeeInflow, Acknowledgment acknowledgment) throws StreamReadException, DatabindException, IOException {
 		//CoffeeInflow coffeeInflow = objectMapper.readValue(coffeeInflowAsBytes, CoffeeInflow.class);

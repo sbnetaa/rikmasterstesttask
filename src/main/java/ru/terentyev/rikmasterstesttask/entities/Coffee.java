@@ -2,11 +2,13 @@ package ru.terentyev.rikmasterstesttask.entities;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
+@EqualsAndHashCode(callSuper = false)
 @Entity
 @Table(name = "coffee")
 public class Coffee extends AbstractEntity {
@@ -17,4 +19,5 @@ public class Coffee extends AbstractEntity {
 	private double robustaPercentage;
 	private double arabicaPercentage;
 	private int roastedGramsAtInput;
+
 }

@@ -7,7 +7,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import ru.terentyev.rikmasterstesttask.entities.CoffeeResponse;
@@ -26,17 +25,17 @@ public class CoffeeController extends AbstractController {
 	}
 	
 	@GetMapping("/stock")
-	public ResponseEntity<List<CoffeeResponse>> takeStock(@RequestParam String sort, @RequestParam String country) {
+	public ResponseEntity<List<CoffeeResponse>> takeStock() {
 		return new ResponseEntity<>(coffeeService.takeStock(), HttpStatus.OK);
 	}
 	
 	@GetMapping("/losses/brigade")
-	public ResponseEntity<CoffeeResponse> takeLossesPerBrigade(@RequestParam String brigadeUuid) {
+	public ResponseEntity<CoffeeResponse> takeLossesPerBrigade() {
 		return new ResponseEntity<>(coffeeService.takeLossesPerBrigade(), HttpStatus.OK);
 	}
 	
 	@GetMapping("/losses/country")
-	public ResponseEntity<CoffeeResponse> takeLossesPerCountry(@RequestParam String country) {
+	public ResponseEntity<CoffeeResponse> takeLossesPerCountry() {
 		return new ResponseEntity<>(coffeeService.takeLossesPerBrigade(), HttpStatus.OK);
 	}
 	
