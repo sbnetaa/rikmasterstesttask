@@ -1,12 +1,12 @@
 package ru.terentyev.rikmasterstesttask;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +39,7 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.StatusException;
 import ru.terentyev.rikmasterstesttask.entities.Coffee;
 import ru.terentyev.rikmasterstesttask.entities.CoffeeInflow;
 import ru.terentyev.rikmasterstesttask.entities.Roasting;
@@ -85,8 +86,8 @@ class RikmasterstesttaskApplicationTests {
 	    private List<Coffee> savedCoffee;
 	    private List<Roasting> savedRoasting;
 	    private Random random;
-	    private List<String> countriesList = List.of("Australia" + random.nextInt(100), "Spain" + random.nextInt(100), "Italy" + random.nextInt(100));
-	    private List<String> sortsList = List.of("Espresso" + random.nextInt(100), "Cappuccino" + random.nextInt(100), "Mochaccino" + random.nextInt(100));
+	    private List<String> countriesList = List.of("Australia" + Math.abs(random.nextInt(100)), "Spain" + Math.abs(random.nextInt(100)), "Italy" + Math.abs(random.nextInt(100)));
+	    private List<String> sortsList = List.of("Espresso" + Math.abs(random.nextInt(100)), "Cappuccino" + Math.abs(random.nextInt(100)), "Mochaccino" + Math.abs(random.nextInt(100)));
 	    
 	    private int coffeeBagsInflow;
 	    
@@ -187,7 +188,7 @@ class RikmasterstesttaskApplicationTests {
 	    }
 	    
 	    @Test
-	    void testKafkaConsumer() {
+	    public void testKafkaConsumer() {
 	    	coffeeInflowList.forEach(coffeeInflow -> kafkaTemplate.send("coffee-inflow-topic", coffeeInflow));	        
 	        ArgumentCaptor<Coffee> captor = ArgumentCaptor.forClass(Coffee.class);
 	        verify(coffeeRepository, times(3)).save(captor.capture());	        
@@ -201,39 +202,35 @@ class RikmasterstesttaskApplicationTests {
 	    
 	    @Test
 	    public void testRoastingRequests() {
-	    	Map<String[], Integer> freshGramsStockPerCountryAndSort = new HashMap<>();
-	    	savedCoffee.forEach(coffee -> freshGramsStockPerCountryAndSort.compute
-	    			(
-	    					new String[]{coffee.getCountry(), coffee.getSort()}, (k, v) -> v += coffee.getGrams() - coffee.getRoastedGramsAtInput()
-	    					
-	    					));
-	    		    	
+	    	Map<List<String>, Integer> freshGramsStockPerCountryAndSort = new HashMap<>();    	
+	    	savedCoffee.forEach(coffee -> {
+	    	    freshGramsStockPerCountryAndSort.compute(
+	    	        List.of(coffee.getCountry(), coffee.getSort()), 
+	    	        (k, v) -> v += coffee.getGrams() - coffee.getRoastedGramsAtInput()
+	    	    );
+	    	});
+	    		
 	    	int i = 0;
-	    	roastingRequestsList.forEach(r -> {
-	    		if (freshGramsStockPerCountryAndSort.get(new String[] {r.getCountry(), r.getSort()}) < r.getGramsBeforeRoasting())
-	    			assertThrows(StatusException.class, () -> blockingStub.acceptRoasting(r));
+	    	for (RoastingRequest request : roastingRequestsList) {
+	    		if (freshGramsStockPerCountryAndSort.get(List.of(request.getCountry(), request.getSort())) < request.getGramsBeforeRoasting())
+	    			assertThrows(StatusException.class, () -> blockingStub.acceptRoasting(request));
 	    		else {
-	    			blockingStub.acceptRoasting(r);
+	    			blockingStub.acceptRoasting(request);
 	    			i++;
 	    		}
-	    	});
+	    	}
+
 	        ArgumentCaptor<Roasting> captor = ArgumentCaptor.forClass(Roasting.class);
 	        verify(roastingRepository, times(i)).save(captor.capture());	        
 	        savedRoasting = captor.getAllValues();
-	        	        
-	        assertTrue(savedRoasting.stream().anyMatch(roasting -> roasting.getCountry().equals(roastingRequestsList.get(0).getCountry())));
-	        assertTrue(savedRoasting.stream().anyMatch(roasting -> roasting.getSort().equals(roastingRequestsList.get(1).getSort())));
-	        assertTrue(savedRoasting.stream().anyMatch(roasting -> roasting.getGramsTaken() == (roastingRequestsList.get(2).getGramsBeforeRoasting())));
+	        int elementsMaxNumber = savedRoasting.size() - 1;
 	        
+	        assertTrue(savedRoasting.stream().anyMatch(roasting -> roasting.getCountry().equals(roastingRequestsList.get(Math.abs(random.nextInt(elementsMaxNumber))).getCountry())));
+	        assertTrue(savedRoasting.stream().anyMatch(roasting -> roasting.getSort().equals(roastingRequestsList.get(Math.abs(random.nextInt(elementsMaxNumber))).getSort())));
+	        assertTrue(savedRoasting.stream().anyMatch(roasting -> roasting.getGramsTaken() == (roastingRequestsList.get(Math.abs(random.nextInt(elementsMaxNumber))).getGramsBeforeRoasting())));
 	        
-	        Map<String[], Map<RoastingRequest, Integer> gramsToRoastPerCountryAndSort = new HashMap<>();
-	        roastingRequestsList.forEach(roasting -> gramsToRoastPerCountryAndSort.compute(new String[]{roasting.getCountry(), roasting.getSort()}, (k, v) -> v += roasting.getGramsBeforeRoasting()));
+	 }
 	        
-	        for (Map.Entry<String[], Integer> roastingEntry : gramsToRoastPerCountryAndSort.entrySet()) {
-	        	if (freshGramsStockPerCountryAndSort.get(roastingEntry.getKey()) < roastingEntry.getValue())
-	        		assertThrows(StatusException.class, () -> blockingStub.acceptRoasting())
-	        }
-	        
-
-	    }
 }
+	    
+
