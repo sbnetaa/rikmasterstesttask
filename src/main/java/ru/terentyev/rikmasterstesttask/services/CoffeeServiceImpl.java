@@ -77,7 +77,8 @@ public class CoffeeServiceImpl extends RoastingServiceGrpc.RoastingServiceImplBa
 	
 	
 	// TODO object или byte[] ?
-	@KafkaListener(topics = "coffee-inflow-topic")
+	@Override
+	@KafkaListener(topics = "coffee-inflow-topic", groupId = "coffee-group")
 	@Transactional(readOnly = false)
 	public void acceptCoffeeInflow(CoffeeInflow coffeeInflow, Acknowledgment acknowledgment) throws StreamReadException, DatabindException, IOException {
 		//CoffeeInflow coffeeInflow = objectMapper.readValue(coffeeInflowAsBytes, CoffeeInflow.class);

@@ -194,10 +194,8 @@ class RikmasterstesttaskApplicationTests {
 	    public void testKafkaConsumer() {
 	    	coffeeInflowList.forEach(coffeeInflow -> kafkaTemplate.send("coffee-inflow-topic", coffeeInflow));
 	        try {
-	            // Приостановить выполнение на 10 секунд
 	            Thread.sleep(10000);
 	        } catch (InterruptedException e) {
-	            // Обработка прерывания
 	            e.printStackTrace();
 	        }
 	        ArgumentCaptor<Coffee> captor = ArgumentCaptor.forClass(Coffee.class);
@@ -215,7 +213,10 @@ class RikmasterstesttaskApplicationTests {
 	    	savedCoffee.forEach(coffee -> {
 	    	    freshGramsStockPerCountryAndSort.compute(
 	    	        List.of(coffee.getCountry(), coffee.getSort()), 
-	    	        (k, v) -> v += coffee.getGrams() - coffee.getRoastedGramsAtInput()
+	    	        (k, v) -> {
+	    	        	if (v == null) v = 0;
+	    	        	v += coffee.getGrams() - coffee.getRoastedGramsAtInput();
+	    	        }
 	    	    );
 	    	});
 	    		
