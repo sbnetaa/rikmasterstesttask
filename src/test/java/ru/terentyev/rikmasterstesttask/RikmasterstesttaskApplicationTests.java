@@ -15,8 +15,11 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,8 +40,6 @@ import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
 import io.grpc.StatusException;
 import ru.terentyev.rikmasterstesttask.entities.Coffee;
 import ru.terentyev.rikmasterstesttask.entities.CoffeeInflow;
@@ -53,6 +54,7 @@ import ru.terentyev.rikmasterstesttask.services.CoffeeServiceImpl;
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @Transactional
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EmbeddedKafka(partitions = 1, topics = {"test-topic"})
@@ -62,8 +64,8 @@ class RikmasterstesttaskApplicationTests {
 		
 		private static final int MAX_BAGS_INFLOW = 10;
 		private static final int MAX_KIND_PERCENTAGE = 100;
-		@Autowired
-		private Server gRpcServer;
+		//@Autowired
+		//private Server gRpcServer;
 	    @Autowired
 	    private PlatformTransactionManager transactionManager;
 	    @InjectMocks
@@ -77,7 +79,7 @@ class RikmasterstesttaskApplicationTests {
 	    private CoffeeRepository coffeeRepository;
 	    @MockBean
 	    private RoastingRepository roastingRepository;
-	    private Server server;
+	    //private Server server;
 	    private TransactionStatus transactionStatus;
 	    private ManagedChannel channel;
 	    private RoastingServiceGrpc.RoastingServiceBlockingStub blockingStub;
@@ -85,11 +87,11 @@ class RikmasterstesttaskApplicationTests {
 	    private List<RoastingRequest> roastingRequestsList;
 	    private List<Coffee> savedCoffee;
 	    private List<Roasting> savedRoasting;
-	    private Random random;
+	    private Random random = new Random();
 	    private List<String> countriesList = List.of("Australia" + Math.abs(random.nextInt(100)), "Spain" + Math.abs(random.nextInt(100)), "Italy" + Math.abs(random.nextInt(100)));
 	    private List<String> sortsList = List.of("Espresso" + Math.abs(random.nextInt(100)), "Cappuccino" + Math.abs(random.nextInt(100)), "Mochaccino" + Math.abs(random.nextInt(100)));
 	    
-	    private int coffeeBagsInflow;
+	    private int coffeeBagsInflow = Math.abs(random.nextInt(15));
 	    
 	    @BeforeAll
 	    public void setUp() throws IOException {
@@ -99,7 +101,7 @@ class RikmasterstesttaskApplicationTests {
 	                .build();
 	        blockingStub = RoastingServiceGrpc.newBlockingStub(channel);
 	        
-	        server = ServerBuilder.forPort(50051).addService(coffeeService).build().start();
+	        //server = ServerBuilder.forPort(50051).addService(coffeeService).build().start();
 	        
 	        fillCoffeeInflowList();
 	        fillRoastingRequestsList();
@@ -188,19 +190,26 @@ class RikmasterstesttaskApplicationTests {
 	    }
 	    
 	    @Test
+	    @Order(1)
 	    public void testKafkaConsumer() {
-	    	coffeeInflowList.forEach(coffeeInflow -> kafkaTemplate.send("coffee-inflow-topic", coffeeInflow));	        
+	    	coffeeInflowList.forEach(coffeeInflow -> kafkaTemplate.send("coffee-inflow-topic", coffeeInflow));
+	        try {
+	            // Приостановить выполнение на 10 секунд
+	            Thread.sleep(10000);
+	        } catch (InterruptedException e) {
+	            // Обработка прерывания
+	            e.printStackTrace();
+	        }
 	        ArgumentCaptor<Coffee> captor = ArgumentCaptor.forClass(Coffee.class);
 	        verify(coffeeRepository, times(3)).save(captor.capture());	        
 	        savedCoffee = captor.getAllValues();	        
 	        assertTrue(savedCoffee.stream().anyMatch(coffee -> coffee.getCountry().equals(coffeeInflowList.get(0).getCountry())));
 	        assertTrue(savedCoffee.stream().anyMatch(coffee -> coffee.getSort().equals(coffeeInflowList.get(1).getSort())));
 	        assertTrue(savedCoffee.stream().anyMatch(coffee -> coffee.getGrams() == (coffeeInflowList.get(2).getBagsCount() * CoffeeInflow.BAG_WEIGHT_GRAMS)));
-
-
 	    }
 	    
 	    @Test
+	    @Order(2)
 	    public void testRoastingRequests() {
 	    	Map<List<String>, Integer> freshGramsStockPerCountryAndSort = new HashMap<>();    	
 	    	savedCoffee.forEach(coffee -> {
