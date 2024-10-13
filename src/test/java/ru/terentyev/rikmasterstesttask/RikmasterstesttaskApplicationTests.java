@@ -2,8 +2,10 @@ package ru.terentyev.rikmasterstesttask;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +42,9 @@ import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
-import io.grpc.StatusException;
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
+import io.grpc.StatusRuntimeException;
 import ru.terentyev.rikmasterstesttask.entities.Coffee;
 import ru.terentyev.rikmasterstesttask.entities.CoffeeInflow;
 import ru.terentyev.rikmasterstesttask.entities.Roasting;
@@ -79,7 +83,7 @@ class RikmasterstesttaskApplicationTests {
 	    private CoffeeRepository coffeeRepository;
 	    @MockBean
 	    private RoastingRepository roastingRepository;
-	    //private Server server;
+	    private Server server;
 	    private TransactionStatus transactionStatus;
 	    private ManagedChannel channel;
 	    private RoastingServiceGrpc.RoastingServiceBlockingStub blockingStub;
@@ -101,7 +105,7 @@ class RikmasterstesttaskApplicationTests {
 	                .build();
 	        blockingStub = RoastingServiceGrpc.newBlockingStub(channel);
 	        
-	        //server = ServerBuilder.forPort(50051).addService(coffeeService).build().start();
+	        server = ServerBuilder.forPort(50051).addService(coffeeService).build().start();
 	        
 	        fillCoffeeInflowList();
 	        fillRoastingRequestsList();
@@ -194,7 +198,7 @@ class RikmasterstesttaskApplicationTests {
 	    public void testKafkaConsumer() {
 	    	coffeeInflowList.forEach(coffeeInflow -> kafkaTemplate.send("coffee-inflow-topic", coffeeInflow));
 	        try {
-	            Thread.sleep(10000);
+	            Thread.sleep(6000);
 	        } catch (InterruptedException e) {
 	            e.printStackTrace();
 	        }
@@ -204,41 +208,59 @@ class RikmasterstesttaskApplicationTests {
 	        assertTrue(savedCoffee.stream().anyMatch(coffee -> coffee.getCountry().equals(coffeeInflowList.get(0).getCountry())));
 	        assertTrue(savedCoffee.stream().anyMatch(coffee -> coffee.getSort().equals(coffeeInflowList.get(1).getSort())));
 	        assertTrue(savedCoffee.stream().anyMatch(coffee -> coffee.getGrams() == (coffeeInflowList.get(2).getBagsCount() * CoffeeInflow.BAG_WEIGHT_GRAMS)));
+	        
 	    }
 	    
 	    @Test
 	    @Order(2)
-	    public void testRoastingRequests() {
+	    public void testRoastingRequests() {	    	
 	    	Map<List<String>, Integer> freshGramsStockPerCountryAndSort = new HashMap<>();    	
 	    	savedCoffee.forEach(coffee -> {
 	    	    freshGramsStockPerCountryAndSort.compute(
 	    	        List.of(coffee.getCountry(), coffee.getSort()), 
 	    	        (k, v) -> {
 	    	        	if (v == null) v = 0;
-	    	        	v += coffee.getGrams() - coffee.getRoastedGramsAtInput();
+	    	        	return v += coffee.getGrams() - coffee.getRoastedGramsAtInput();
 	    	        }
 	    	    );
 	    	});
-	    		
+	    	
+	    	when(coffeeRepository.findAllBySortAndCountry(anyString(), anyString())).thenAnswer(invocation -> {
+	    		List<Coffee> coffeeToReturn = new ArrayList<>();
+	    		for (Coffee coffee : savedCoffee) {
+	    			if (coffee.getSort().equals(invocation.getArgument(0)) && coffee.getCountry().equals(invocation.getArgument(1)))
+	    				coffeeToReturn.add(coffee);
+	    		}
+	    		return coffeeToReturn;
+	    	});
+		
 	    	int i = 0;
 	    	for (RoastingRequest request : roastingRequestsList) {
-	    		if (freshGramsStockPerCountryAndSort.get(List.of(request.getCountry(), request.getSort())) < request.getGramsBeforeRoasting())
-	    			assertThrows(StatusException.class, () -> blockingStub.acceptRoasting(request));
-	    		else {
-	    			blockingStub.acceptRoasting(request);
+	    		if (freshGramsStockPerCountryAndSort.get(List.of(request.getCountry(), request.getSort())) < request.getGramsBeforeRoasting()) {
+	    			assertThrows(StatusRuntimeException.class, () -> blockingStub.acceptRoasting(request));
 	    			i++;
+	    		}
+	    		else {	    			
+	    			blockingStub.acceptRoasting(request);
+	    			freshGramsStockPerCountryAndSort.compute(List.of(request.getCountry(), request.getSort()), (k, v) -> {
+	    				if (v == null) v = 0;
+	    				return v -= request.getGramsBeforeRoasting();
+	    			});   			
+	    			
 	    		}
 	    	}
 
 	        ArgumentCaptor<Roasting> captor = ArgumentCaptor.forClass(Roasting.class);
-	        verify(roastingRepository, times(i)).save(captor.capture());	        
+	        verify(roastingRepository, times(roastingRequestsList.size() - i)).save(captor.capture());	        
 	        savedRoasting = captor.getAllValues();
-	        int elementsMaxNumber = savedRoasting.size() - 1;
-	        
-	        assertTrue(savedRoasting.stream().anyMatch(roasting -> roasting.getCountry().equals(roastingRequestsList.get(Math.abs(random.nextInt(elementsMaxNumber))).getCountry())));
-	        assertTrue(savedRoasting.stream().anyMatch(roasting -> roasting.getSort().equals(roastingRequestsList.get(Math.abs(random.nextInt(elementsMaxNumber))).getSort())));
-	        assertTrue(savedRoasting.stream().anyMatch(roasting -> roasting.getGramsTaken() == (roastingRequestsList.get(Math.abs(random.nextInt(elementsMaxNumber))).getGramsBeforeRoasting())));
-	        
+      
+	        for (Roasting roasting : savedRoasting) {
+		        assertTrue(roastingRequestsList.stream().anyMatch(request -> { 
+		        	return request.getCountry().equals(roasting.getCountry())
+		        	&& request.getSort().equals(roasting.getSort()) && request.getGramsBeforeRoasting() == roasting.getGramsTaken();       	
+		        }));
+	        }
+	        assertTrue(savedRoasting.size() == roastingRequestsList.size() - i);
 	 }
 	        
 }

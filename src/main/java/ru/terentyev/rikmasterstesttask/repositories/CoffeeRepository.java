@@ -21,10 +21,4 @@ public interface CoffeeRepository extends JpaRepository<Coffee, Integer> {
 	@Query("SELECT SUM(c.grams - c.roastedGramsAtInput) FROM Coffee c WHERE c.sort = ?1 AND c.country = ?2;")
 	int takeFreshStockPerSortAndCountry(String sort, String Country);
 	
-//	@Query("SELECT SUM(c.grams) FROM Coffee c HAVING c.sort = ?1 and c.country = ?2;")
-//	Integer takeStockDeleted(String sort, String country);
-//	
-//	@Query("SELECT SUM(c.roastedGramsAtInput) FROM Coffee c HAVING c.sort = ?1 and c.country = ?2;")
-//	Integer takeRoastedStock(String sort, String country);
-	
 }
