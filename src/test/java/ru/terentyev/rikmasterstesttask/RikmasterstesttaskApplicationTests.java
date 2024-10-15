@@ -6,11 +6,15 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
@@ -29,24 +33,30 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.StatusRuntimeException;
+import ru.terentyev.rikmasterstesttask.controllers.CoffeeController;
 import ru.terentyev.rikmasterstesttask.entities.Coffee;
 import ru.terentyev.rikmasterstesttask.entities.CoffeeInflow;
+import ru.terentyev.rikmasterstesttask.entities.CoffeeResponse;
 import ru.terentyev.rikmasterstesttask.entities.Roasting;
 import ru.terentyev.rikmasterstesttask.repositories.CoffeeRepository;
 import ru.terentyev.rikmasterstesttask.repositories.RoastingRepository;
@@ -72,11 +82,15 @@ class RikmasterstesttaskApplicationTests {
 		//private Server gRpcServer;
 	    @Autowired
 	    private PlatformTransactionManager transactionManager;
+	    private CoffeeController coffeeController;
 	    @InjectMocks
 	    @Autowired
 	    private CoffeeServiceImpl coffeeService;
+	    
 	    @Autowired
 	    private KafkaTemplate<String, CoffeeInflow> kafkaTemplate;
+	    @Autowired
+	    private ObjectMapper objectMapper;
 	    @Autowired
 	    private MockMvc mockMvc;
 	    @MockBean
@@ -91,6 +105,7 @@ class RikmasterstesttaskApplicationTests {
 	    private List<RoastingRequest> roastingRequestsList;
 	    private List<Coffee> savedCoffee;
 	    private List<Roasting> savedRoasting;
+	    private Map<List<String>, Integer> freshGramsStockPerCountryAndSort;
 	    private Random random = new Random();
 	    private List<String> countriesList = List.of("Australia" + Math.abs(random.nextInt(100)), "Spain" + Math.abs(random.nextInt(100)), "Italy" + Math.abs(random.nextInt(100)));
 	    private List<String> sortsList = List.of("Espresso" + Math.abs(random.nextInt(100)), "Cappuccino" + Math.abs(random.nextInt(100)), "Mochaccino" + Math.abs(random.nextInt(100)));
@@ -109,6 +124,7 @@ class RikmasterstesttaskApplicationTests {
 	        
 	        fillCoffeeInflowList();
 	        fillRoastingRequestsList();
+	        defineWhenMethod();
 	    }
 	    
 	    public void fillCoffeeInflowList() {
@@ -183,6 +199,10 @@ class RikmasterstesttaskApplicationTests {
 	    	roastingRequestsList.add(request3);
 	    }
 	    
+	    public void defineWhenMethod() {
+
+	    }
+	    
 	    @AfterAll
 	    public void tearDown() {
 	        if (channel != null) {
@@ -214,7 +234,7 @@ class RikmasterstesttaskApplicationTests {
 	    @Test
 	    @Order(2)
 	    public void testRoastingRequests() {	    	
-	    	Map<List<String>, Integer> freshGramsStockPerCountryAndSort = new HashMap<>();    	
+	    	freshGramsStockPerCountryAndSort = new HashMap<>();    	
 	    	savedCoffee.forEach(coffee -> {
 	    	    freshGramsStockPerCountryAndSort.compute(
 	    	        List.of(coffee.getCountry(), coffee.getSort()), 
@@ -224,7 +244,7 @@ class RikmasterstesttaskApplicationTests {
 	    	        }
 	    	    );
 	    	});
-	    	
+
 	    	when(coffeeRepository.findAllBySortAndCountry(anyString(), anyString())).thenAnswer(invocation -> {
 	    		List<Coffee> coffeeToReturn = new ArrayList<>();
 	    		for (Coffee coffee : savedCoffee) {
@@ -233,7 +253,7 @@ class RikmasterstesttaskApplicationTests {
 	    		}
 	    		return coffeeToReturn;
 	    	});
-		
+	    	
 	    	int i = 0;
 	    	for (RoastingRequest request : roastingRequestsList) {
 	    		if (freshGramsStockPerCountryAndSort.get(List.of(request.getCountry(), request.getSort())) < request.getGramsBeforeRoasting()) {
@@ -261,8 +281,78 @@ class RikmasterstesttaskApplicationTests {
 		        }));
 	        }
 	        assertTrue(savedRoasting.size() == roastingRequestsList.size() - i);
-	 }
-	        
+	    }
+	    	    
+	    @Test
+	    @Order(3)
+	    public void prepareRestMethods() {
+	    	List<Roasting> newRoastingList = new ArrayList<>(savedRoasting);
+	    	ListIterator<Roasting> roastingIterator = newRoastingList.listIterator();
+	    	for (Coffee coffee : savedCoffee) {
+	    		while (roastingIterator.hasNext()) {
+	    			Roasting roasting = roastingIterator.next();
+	    			//roasting = roastingIterator.previous();
+	    			if (coffee.getCountry().equals(roasting.getCountry())
+	    					&& coffee.getSort().equals(roasting.getSort())) {
+	    				if (roasting.getGramsTaken() <= coffee.getGrams() - coffee.getRoastedGramsAtInput()) {
+	    					coffee.setRoastedGramsAtInput(coffee.getRoastedGramsAtInput() + roasting.getGramsTaken());
+	    					roastingIterator.remove();
+	    				} else {
+	    					int gramsTmp = coffee.getGrams() - coffee.getRoastedGramsAtInput();
+	    					coffee.setRoastedGramsAtInput(coffee.getGrams());
+	    					roasting.setGramsTaken(roasting.getGramsTaken() - gramsTmp);
+	    					if (roasting.getGramsTaken() > 0) roastingIterator.previous();
+	    				}
+	    			}
+	    		}
+	    	}
+	    }
+	    
+	    @Test
+	    @Order(4)
+	    public void testRestTakeStock() throws Exception {
+	    	Map<String, Map<String, List<Integer>>> responseLayoutMap = new HashMap<>();	
+	    	for (Coffee coffee : savedCoffee) {
+	    		Map<String, List<Integer>> innerMap = new HashMap<>();
+	    		if (!responseLayoutMap.containsKey(coffee.getSort())) {
+	    			responseLayoutMap.put(coffee.getSort(), innerMap);
+	    		}
+	    			innerMap.compute(coffee.getCountry(), (k, v) -> {
+	    			if (v == null) {
+	    				v = new ArrayList<>();
+	    				v.add(coffee.getGrams());
+	    				v.add(coffee.getGrams() - coffee.getRoastedGramsAtInput());
+	    			} else {
+	    				v.set(0, v.get(0) + coffee.getGrams());
+	    				v.set(1, v.get(1) + coffee.getGrams() - coffee.getRoastedGramsAtInput());
+	    			}
+	    			return v;
+	    			});
+	    	}
+	    	
+	    	List<CoffeeResponse> responseList = new ArrayList<>();
+	    	
+	    	for (Map.Entry<String, Map<String, List<Integer>>> outerEntry : responseLayoutMap.entrySet()) {
+	    		for (Map.Entry<String, List<Integer>> innerEntry : outerEntry.getValue().entrySet()) {
+	    			CoffeeResponse response = new CoffeeResponse();
+	    			response.setSort(outerEntry.getKey());
+	    			response.setCountry(innerEntry.getKey());
+	    			response.setGramsStock(innerEntry.getValue().get(0));
+	    			response.setFreshGramsStock(innerEntry.getValue().get(1));
+	    			responseList.add(response);
+	    		}
+	    	}
+	    	
+//	    	when(coffeeService.takeStock()).thenReturn(responseList);   
+	    	when(coffeeRepository.findAllGroupBySortAndCountry()).thenReturn(savedCoffee);
+	    	String expectedJson = objectMapper.writeValueAsString(responseList);	
+	    	mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/stock")
+	    			.accept(MediaType.APPLICATION_JSON_VALUE)
+	    			.contentType(MediaType.APPLICATION_JSON_VALUE))
+	    	.andExpect(status().isOk())
+	    	.andDo(print())
+	    	.andExpect(content().json(expectedJson));
+	    }
 }
 	    
 
