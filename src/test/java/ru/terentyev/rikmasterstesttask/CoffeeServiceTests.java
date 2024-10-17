@@ -6,9 +6,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,31 +26,23 @@ import org.junit.jupiter.api.TestMethodOrder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.http.MediaType;
 import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.context.EmbeddedKafka;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.StatusRuntimeException;
-import ru.terentyev.rikmasterstesttask.controllers.CoffeeController;
 import ru.terentyev.rikmasterstesttask.entities.Coffee;
 import ru.terentyev.rikmasterstesttask.entities.CoffeeInflow;
 import ru.terentyev.rikmasterstesttask.entities.CoffeeResponse;
@@ -65,34 +54,24 @@ import ru.terentyev.rikmasterstesttask.roasting.RoastingServiceGrpc;
 import ru.terentyev.rikmasterstesttask.services.CoffeeServiceImpl;
 
 @SpringBootTest
-@AutoConfigureMockMvc
 @ActiveProfiles("test")
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @Transactional
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @EmbeddedKafka(partitions = 1, topics = {"test-topic"})
 @DirtiesContext
 @EnableKafka
-class RikmasterstesttaskApplicationTests {
+class CoffeeServiceTests {
 		
 		private static final int MAX_BAGS_INFLOW = 10;
-		private static final int MAX_KIND_PERCENTAGE = 100;
-		//@Autowired
-		//private Server gRpcServer;
+		private static final int MAX_KIND_PERCENTAGE = 100; 
 	    @Autowired
 	    private PlatformTransactionManager transactionManager;
-	    private CoffeeController coffeeController;
 	    @InjectMocks
 	    @Autowired
 	    private CoffeeServiceImpl coffeeService;
-	    
 	    @Autowired
 	    private KafkaTemplate<String, CoffeeInflow> kafkaTemplate;
-	    @Autowired
-	    private ObjectMapper objectMapper;
-	    @Autowired
-	    private MockMvc mockMvc;
 	    @MockBean
 	    private CoffeeRepository coffeeRepository;
 	    @MockBean
@@ -105,6 +84,9 @@ class RikmasterstesttaskApplicationTests {
 	    private List<RoastingRequest> roastingRequestsList;
 	    private List<Coffee> savedCoffee;
 	    private List<Roasting> savedRoasting;
+	    private List<CoffeeResponse> responsesList;
+	    private UUID[] brigadesArray;
+	    private String[] countriesArray;
 	    private Map<List<String>, Integer> freshGramsStockPerCountryAndSort;
 	    private Random random = new Random();
 	    private List<String> countriesList = List.of("Australia" + Math.abs(random.nextInt(100)), "Spain" + Math.abs(random.nextInt(100)), "Italy" + Math.abs(random.nextInt(100)));
@@ -113,7 +95,7 @@ class RikmasterstesttaskApplicationTests {
 	    private int coffeeBagsInflow = Math.abs(random.nextInt(15));
 	    
 	    @BeforeAll
-	    public void setUp() throws IOException {
+	    public void init() throws IOException {
 	    	transactionStatus = transactionManager.getTransaction(new DefaultTransactionDefinition());
 	        channel = ManagedChannelBuilder.forAddress("localhost", 50051)
 	                .usePlaintext()
@@ -124,14 +106,15 @@ class RikmasterstesttaskApplicationTests {
 	        
 	        fillCoffeeInflowList();
 	        fillRoastingRequestsList();
-	        defineWhenMethod();
+	        fillBrigadesArray();
+	        fillCountriesArray();
 	    }
 	    
 	    public void fillCoffeeInflowList() {
 	    	coffeeInflowList = new ArrayList<>();
 	    	
 	    	CoffeeInflow coffeeInflow1 = new CoffeeInflow();
-	    	coffeeInflow1.setBagsCount(Math.abs(random.nextInt(MAX_BAGS_INFLOW)));
+	    	coffeeInflow1.setBagsCount(Math.abs(random.nextInt(MAX_BAGS_INFLOW) + 1));
 	    	coffeeInflow1.setArabicaPercentage(Math.abs(random.nextDouble(MAX_KIND_PERCENTAGE)));
 	    	coffeeInflow1.setRobustaPercentage(Math.abs(random.nextDouble(MAX_KIND_PERCENTAGE - coffeeInflow1.getArabicaPercentage())));
 	    	coffeeInflow1.setCountry(countriesList.get(0));
@@ -140,7 +123,7 @@ class RikmasterstesttaskApplicationTests {
 	    	coffeeInflowList.add(coffeeInflow1);
 	    	
 	    	CoffeeInflow coffeeInflow2 = new CoffeeInflow();
-	    	coffeeInflow2.setBagsCount(Math.abs(random.nextInt(MAX_BAGS_INFLOW)));
+	    	coffeeInflow2.setBagsCount(Math.abs(random.nextInt(MAX_BAGS_INFLOW) + 1));
 	    	coffeeInflow2.setArabicaPercentage(Math.abs(random.nextDouble(MAX_KIND_PERCENTAGE)));
 	    	coffeeInflow2.setRobustaPercentage(Math.abs(random.nextDouble(MAX_KIND_PERCENTAGE - coffeeInflow2.getArabicaPercentage())));
 	    	coffeeInflow2.setCountry(countriesList.get(1));
@@ -150,7 +133,7 @@ class RikmasterstesttaskApplicationTests {
 	    	
 	    	
 	    	CoffeeInflow coffeeInflow3 = new CoffeeInflow();
-	    	coffeeInflow3.setBagsCount(Math.abs(random.nextInt(MAX_BAGS_INFLOW)));
+	    	coffeeInflow3.setBagsCount(Math.abs(random.nextInt(MAX_BAGS_INFLOW) + 1));
 	    	coffeeInflow3.setArabicaPercentage(Math.abs(random.nextDouble(MAX_KIND_PERCENTAGE)));
 	    	coffeeInflow3.setRobustaPercentage(Math.abs(random.nextDouble(MAX_KIND_PERCENTAGE - coffeeInflow3.getArabicaPercentage())));
 	    	coffeeInflow3.setCountry(countriesList.get(2));
@@ -199,8 +182,21 @@ class RikmasterstesttaskApplicationTests {
 	    	roastingRequestsList.add(request3);
 	    }
 	    
-	    public void defineWhenMethod() {
-
+	    public void fillBrigadesArray() {
+	    	brigadesArray = new UUID[5];
+	    	for (int i = 0; i <= 4; i++) {
+	    		brigadesArray[i] = UUID.randomUUID();
+	    	}
+	    }
+	    
+	    public void fillCountriesArray() {
+	    	countriesArray = new String[5];
+	    		countriesArray[0] = "Britain" + random.nextInt(100);
+	    		countriesArray[1] = "Brazil" + random.nextInt(100);
+	    		countriesArray[2] = "Cuba" + random.nextInt(100);
+	    		countriesArray[3] = "Poland" + random.nextInt(100);
+	    		countriesArray[4] = "France" + random.nextInt(100);
+	    			    	
 	    }
 	    
 	    @AfterAll
@@ -282,7 +278,9 @@ class RikmasterstesttaskApplicationTests {
 	        }
 	        assertTrue(savedRoasting.size() == roastingRequestsList.size() - i);
 	    }
-	    	    
+	   
+	   
+	    
 	    @Test
 	    @Order(3)
 	    public void prepareRestMethods() {
@@ -291,14 +289,13 @@ class RikmasterstesttaskApplicationTests {
 	    	for (Coffee coffee : savedCoffee) {
 	    		while (roastingIterator.hasNext()) {
 	    			Roasting roasting = roastingIterator.next();
-	    			//roasting = roastingIterator.previous();
 	    			if (coffee.getCountry().equals(roasting.getCountry())
 	    					&& coffee.getSort().equals(roasting.getSort())) {
 	    				if (roasting.getGramsTaken() <= coffee.getGrams() - coffee.getRoastedGramsAtInput()) {
 	    					coffee.setRoastedGramsAtInput(coffee.getRoastedGramsAtInput() + roasting.getGramsTaken());
 	    					roastingIterator.remove();
 	    				} else {
-	    					int gramsTmp = coffee.getGrams() - coffee.getRoastedGramsAtInput();
+	    					int gramsTmp = coffee.getGrams() - coffee.getRoastedGramsAtInput(); // fresh stock
 	    					coffee.setRoastedGramsAtInput(coffee.getGrams());
 	    					roasting.setGramsTaken(roasting.getGramsTaken() - gramsTmp);
 	    					if (roasting.getGramsTaken() > 0) roastingIterator.previous();
@@ -330,7 +327,7 @@ class RikmasterstesttaskApplicationTests {
 	    			});
 	    	}
 	    	
-	    	List<CoffeeResponse> responseList = new ArrayList<>();
+	    	responsesList = new ArrayList<>();
 	    	
 	    	for (Map.Entry<String, Map<String, List<Integer>>> outerEntry : responseLayoutMap.entrySet()) {
 	    		for (Map.Entry<String, List<Integer>> innerEntry : outerEntry.getValue().entrySet()) {
@@ -339,19 +336,83 @@ class RikmasterstesttaskApplicationTests {
 	    			response.setCountry(innerEntry.getKey());
 	    			response.setGramsStock(innerEntry.getValue().get(0));
 	    			response.setFreshGramsStock(innerEntry.getValue().get(1));
-	    			responseList.add(response);
+	    			when(coffeeRepository.takeCommonStockPerSortAndCountry(outerEntry.getKey(), innerEntry.getKey())).thenReturn(response.getGramsStock());
+	    			when(coffeeRepository.takeFreshStockPerSortAndCountry(outerEntry.getKey(), innerEntry.getKey())).thenReturn(response.getFreshGramsStock());
+	    			responsesList.add(response);
 	    		}
+	    	}  
+	    	
+	    	when(coffeeRepository.findAllGroupBySortAndCountry()).thenReturn(savedCoffee);
+	    	assertTrue(coffeeService.takeStock().containsAll(responsesList));
+	    	
+	    }
+	    
+	    @Test
+	    @Order(5)
+	    public void testRestTakeLossesPerBrigade() {
+	    	List<UUID> brigadesList = new ArrayList<>();
+	    	for (Roasting roasting : savedRoasting) {
+	    		brigadesList.add(roasting.getBrigadeNumber());
 	    	}
 	    	
-//	    	when(coffeeService.takeStock()).thenReturn(responseList);   
-	    	when(coffeeRepository.findAllGroupBySortAndCountry()).thenReturn(savedCoffee);
-	    	String expectedJson = objectMapper.writeValueAsString(responseList);	
-	    	mockMvc.perform(MockMvcRequestBuilders.get("/api/v1/stock")
-	    			.accept(MediaType.APPLICATION_JSON_VALUE)
-	    			.contentType(MediaType.APPLICATION_JSON_VALUE))
-	    	.andExpect(status().isOk())
-	    	.andDo(print())
-	    	.andExpect(content().json(expectedJson));
+	    	when(roastingRepository.findAllBrigades()).thenReturn(brigadesList.toArray(new UUID[0]));
+	    	when(roastingRepository.findAllCountries()).thenReturn(countriesList.toArray(new String[0]));
+	    	
+	    	Map<UUID, Double> lossesPerBrigadeMap = new HashMap<>();
+	    	for (UUID brigade : brigadesList) {
+	    		lossesPerBrigadeMap.put(brigade, takeLossesPerBrigade(brigade));
+	    	}
+	    	
+	    	CoffeeResponse response = new CoffeeResponse();
+	    	response.setLossesPerBrigade(lossesPerBrigadeMap);
+	    	
+	    	
+	    	assertTrue(coffeeService.takeLossesPerBrigade().equals(response));
+	    }
+	    
+	    
+	    public double takeLossesPerBrigade(UUID brigade) {
+	    	double result = 0.0;
+	    	int sum = 1;
+	    	for (Roasting roasting : savedRoasting) {
+	    		if (roasting.getBrigadeNumber().equals(brigade)) {
+	    			result += ((roasting.getGramsTaken() - roasting.getGramsResulting()) / roasting.getGramsTaken() / sum++);
+	    		}
+	    	}
+	    	return result;
+	    }
+	    
+	    
+	    @Test
+	    @Order(6)
+	    public void testRestTakeLossesPerCountry() {
+	    	when(roastingRepository.findAllCountries()).thenReturn(countriesList.toArray(new String[0]));
+	    	
+	    	
+	    	Map<String, Double> lossesPerCountryMap = new HashMap<>();
+	    	for (String country : countriesList) {
+	    		lossesPerCountryMap.put(country, takeLossesPerCountry(country));
+	    	}
+	    	
+	    	
+	    	
+	    	CoffeeResponse response = new CoffeeResponse();
+	    	response.setLossesPerCountry(lossesPerCountryMap);
+	    	
+	    	
+	    	assertTrue(coffeeService.takeLossesPerCountry().equals(response));
+	    }
+	    
+	    
+	    public double takeLossesPerCountry(String country) {
+	    	double result = 0.0;
+	    	int sum = 1;
+	    	for (Roasting roasting : savedRoasting) {
+	    		if (roasting.getCountry().equals(country)) {
+	    			result += ((roasting.getGramsTaken() - roasting.getGramsResulting()) / roasting.getGramsTaken() / sum++);
+	    		}
+	    	}
+	    	return result;
 	    }
 }
 	    
